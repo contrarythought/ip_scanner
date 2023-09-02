@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"io"
+	"ip_scanner/app"
 	"log"
 	"os"
 
@@ -50,4 +51,7 @@ func main() {
 		log.Fatal(err)
 	}
 	defer db.Close()
+
+	errCh := make(chan error)
+	app.Scan(db, errCh)
 }

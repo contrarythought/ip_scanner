@@ -1,6 +1,7 @@
 package app
 
 import (
+	"database/sql"
 	"math/rand"
 	"net"
 	"runtime"
@@ -33,30 +34,33 @@ const (
 )
 
 // TODO
-func scanPorts(ip string) error {
+func scanPorts(ip string) ([]string, error) {
 	var wg sync.WaitGroup
-	scan := func() error {
+	var opened_ports []string
+	scan := func() {
 		ports := [NUM_PORTS]string{"20", "21", "22", "23", "53", "80", "123", "179", "443", "500", "587", "3389"}
-
 		for _, port := range ports {
 			wg.Add(1)
 			go func(port string) {
 				defer wg.Done()
 				ipPort := ip + ":" + port
-				if _, err := net.Dial("tcp", ipPort); err != nil {
-					// log err
+				if _, err := net.Dial("tcp", ipPort); err == nil {
+					opened_ports = append(opened_ports, port)
+				} else {
+					// log error
 				}
 			}(port)
 		}
 		wg.Wait()
-
-		return nil
 	}
 
-	return scan()
+	scan()
+
+	return opened_ports, nil
 }
 
-func Scan(errCh chan<- error) {
+// TODO
+func Scan(db *sql.DB, errCh chan<- error) {
 	randIntCh := make(chan (uint32))
 	numWorkers := runtime.NumCPU()
 
@@ -73,10 +77,18 @@ func Scan(errCh chan<- error) {
 
 				ipv4 := net.IPv4(b4, b3, b2, b1)
 
+				// check to see if ip was already found (don't want to make API request if already found)
+
 				// scan ip address
-				if err := scanPorts(ipv4.String()); err != nil {
+				opened_ports, err := scanPorts(ipv4.String())
+				if err != nil {
 					errCh <- err
 				}
+
+				// find geo location
+
+				// insert ip and opened ports into db
+
 			}
 		}()
 	}
