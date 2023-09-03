@@ -53,5 +53,11 @@ func main() {
 	defer db.Close()
 
 	errCh := make(chan error)
-	app.Scan(db, errCh)
+	logfile, err := os.OpenFile("log.txt", os.O_APPEND|os.O_CREATE|os.O_WRONLY, 644)
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer logfile.Close()
+	logger := log.New(logfile, "log", log.LstdFlags|log.Lshortfile)
+	app.Scan(db, errCh, logger)
 }

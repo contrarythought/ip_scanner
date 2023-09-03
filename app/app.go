@@ -2,6 +2,7 @@ package app
 
 import (
 	"database/sql"
+	"log"
 	"math/rand"
 	"net"
 	"runtime"
@@ -34,9 +35,9 @@ const (
 )
 
 // TODO
-func scanPorts(ip string) ([]string, error) {
+func scanPorts(ip string, logger *log.Logger) ([]string, error) {
 	var wg sync.WaitGroup
-	var opened_ports []string
+	var openedPorts []string
 	scan := func() {
 		ports := [NUM_PORTS]string{"20", "21", "22", "23", "53", "80", "123", "179", "443", "500", "587", "3389"}
 		for _, port := range ports {
@@ -45,9 +46,9 @@ func scanPorts(ip string) ([]string, error) {
 				defer wg.Done()
 				ipPort := ip + ":" + port
 				if _, err := net.Dial("tcp", ipPort); err == nil {
-					opened_ports = append(opened_ports, port)
+					openedPorts = append(openedPorts, port)
 				} else {
-					// log error
+					logger.Println(err)
 				}
 			}(port)
 		}
@@ -56,11 +57,11 @@ func scanPorts(ip string) ([]string, error) {
 
 	scan()
 
-	return opened_ports, nil
+	return openedPorts, nil
 }
 
 // TODO
-func Scan(db *sql.DB, errCh chan<- error) {
+func Scan(db *sql.DB, errCh chan<- error, logger *log.Logger) {
 	randIntCh := make(chan (uint32))
 	numWorkers := runtime.NumCPU()
 
@@ -78,16 +79,21 @@ func Scan(db *sql.DB, errCh chan<- error) {
 				ipv4 := net.IPv4(b4, b3, b2, b1)
 
 				// check to see if ip was already found (don't want to make API request if already found)
+				var ipToCmp string
+				row := db.QueryRow("SELECT ip_addr FROM ip_addresses WHERE ip_addr = $1", ipv4.String())
+				if err := row.Scan(&ipToCmp); err == sql.ErrNoRows {
+					// scan ip address
+					openedPorts, err := scanPorts(ipv4.String(), logger)
+					if err != nil {
+						errCh <- err
+					}
 
-				// scan ip address
-				opened_ports, err := scanPorts(ipv4.String())
-				if err != nil {
-					errCh <- err
+					// find geo location
+
+					// insert ip and opened ports into db
+				} else {
+					logger.Println(err)
 				}
-
-				// find geo location
-
-				// insert ip and opened ports into db
 
 			}
 		}()
