@@ -10,9 +10,9 @@ import (
 	"time"
 )
 
-func genRandInt(randIntCh chan<- uint32) {
-	r := rand.New(rand.NewSource(time.Now().UnixMicro()))
-	randIntCh <- r.Uint32()
+func genRandInt(randIntCh chan<- uint32, source *rand.Source) {
+	randNum := rand.New(*source)
+	randIntCh <- randNum.Uint32()
 }
 
 /*
@@ -62,7 +62,7 @@ func scanPorts(ip string, logger *log.Logger) ([]string, error) {
 
 // TODO
 func Scan(db *sql.DB, errCh chan<- error, logger *log.Logger) {
-	randIntCh := make(chan (uint32))
+	randIntCh := make(chan uint32)
 	numWorkers := runtime.NumCPU()
 
 	for i := 0; i < numWorkers; i++ {
@@ -83,10 +83,12 @@ func Scan(db *sql.DB, errCh chan<- error, logger *log.Logger) {
 				row := db.QueryRow("SELECT ip_addr FROM ip_addresses WHERE ip_addr = $1", ipv4.String())
 				if err := row.Scan(&ipToCmp); err == sql.ErrNoRows {
 					// scan ip address
-					openedPorts, err := scanPorts(ipv4.String(), logger)
-					if err != nil {
-						errCh <- err
-					}
+					/*
+						openedPorts, err := scanPorts(ipv4.String(), logger)
+						if err != nil {
+							errCh <- err
+						}
+					*/
 
 					// find geo location
 
@@ -99,7 +101,8 @@ func Scan(db *sql.DB, errCh chan<- error, logger *log.Logger) {
 		}()
 	}
 
+	source := rand.NewSource(time.Now().UnixMicro())
 	for {
-		genRandInt(randIntCh)
+		genRandInt(randIntCh, &source)
 	}
 }
